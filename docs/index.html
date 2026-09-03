@@ -54,20 +54,10 @@
       (English stays as it is), and produces an Excel workbook with the data table, a summary table and charts.</p>
     <label for="file">Image file (JPEG, PNG, WebP, BMP, TIFF)</label>
     <input id="file" type="file" accept="image/*">
-    <p class="muted" style="margin-top:10px">Server: <span class="badge" id="srv">checking…</span></p>
-    <div id="mixed" class="warn" hidden>This page is served over HTTPS, so the browser blocks a plain <code>http://</code> server address.
-      Use an <code>https://</code> server address.</div>
     <div class="row" style="margin-top:14px">
       <button class="btn" id="go">Convert to Excel</button>
       <span class="muted" id="status"></span>
     </div>
-    <details style="margin-top:14px">
-      <summary>Advanced: conversion server</summary>
-      <label for="api">Server URL</label>
-      <input id="api" type="url" placeholder="https://…">
-      <p class="muted">Leave empty to use the default server published with this page. Any deployment of the
-        <a href="https://github.com/litigoner/image-to-xl">image-to-xl</a> repository works.</p>
-    </details>
   </div>
 
   <div class="card" id="result" hidden>
@@ -82,53 +72,26 @@
     <div class="tablewrap"><table id="tbl"></table></div>
   </div>
 
-  <div class="card">
-    <h2>API</h2>
-    <p class="muted">Send an image and receive the workbook directly:</p>
-    <pre><code id="curl">curl -F image=@table.jpg &lt;server&gt;/api/convert -o table.xlsx</code></pre>
-    <p class="muted">Add <code>?format=json</code> to get the extracted rows as JSON plus a download link.</p>
-  </div>
 </main>
 <script>
   const $ = id => document.getElementById(id);
-  let defaultApi = '';
-  function apiBase() {
-    const custom = $('api').value.trim();
-    return (custom || defaultApi).replace(/\/+$/, '');
-  }
-  function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-  async function checkServer() {
-    const base = apiBase();
-    $('mixed').hidden = !(location.protocol === 'https:' && base.startsWith('http:'));
-    $('curl').textContent = `curl -F image=@table.jpg ${base || '<server>'}/api/convert -o table.xlsx`;
-    const b = $('srv');
-    if (!base) { b.textContent = 'not configured'; b.className = 'badge'; return; }
-    try {
-      const r = await fetch(base + '/health', { cache: 'no-store' });
-      const d = await r.json();
-      b.textContent = 'online' + (d.engines && d.engines.claude ? ' · Claude vision ready' : ' · Tesseract OCR');
-      b.className = 'badge on';
-    } catch (e) { b.textContent = 'offline (' + base + ')'; b.className = 'badge'; }
-  }
+  let apiBase = '';
   (async () => {
-    try { $('api').value = localStorage.getItem('image2xl.api') || ''; } catch (e) {}
     try {
       const r = await fetch('api.json', { cache: 'no-store' });
-      if (r.ok) defaultApi = ((await r.json()).api || '').trim();
+      if (r.ok) apiBase = ((await r.json()).api || '').trim().replace(/\/+$/, '');
     } catch (e) {}
-    checkServer();
   })();
-  $('api').addEventListener('change', () => { try { localStorage.setItem('image2xl.api', $('api').value.trim()); } catch (e) {} checkServer(); });
+  function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
   $('again').addEventListener('click', () => { $('result').hidden = true; $('file').value = ''; window.scrollTo(0, 0); });
   $('go').addEventListener('click', async () => {
-    const base = apiBase();
     const f = $('file').files[0];
-    if (!base) { $('status').textContent = 'No conversion server configured (see Advanced).'; return; }
     if (!f) { $('status').textContent = 'Choose an image file first.'; return; }
     $('go').disabled = true; $('status').textContent = 'Reading the image… this takes about 10 seconds.'; $('result').hidden = true;
     try {
+      if (!apiBase) throw new Error('unavailable');
       const fd = new FormData(); fd.append('image', f);
-      const r = await fetch(base + '/api/convert?format=json', { method: 'POST', body: fd });
+      const r = await fetch(apiBase + '/api/convert?format=json', { method: 'POST', body: fd });
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || r.statusText);
       $('title').textContent = data.title || 'Extracted table';
@@ -146,7 +109,10 @@
       $('result').hidden = false; $('status').textContent = '';
       $('result').scrollIntoView({ behavior: 'smooth' });
     } catch (e) {
-      $('status').textContent = 'Failed: ' + e.message + (e.message === 'Failed to fetch' ? ' (server unreachable)' : '');
+      const transient = e.message === 'Failed to fetch' || e.message === 'unavailable';
+      $('status').textContent = transient
+        ? 'The conversion service is temporarily unavailable. Please try again in a minute.'
+        : 'Conversion failed: ' + e.message;
     } finally { $('go').disabled = false; }
   });
 </script>
