@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Result · Image to Excel{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="row" style="justify-content:space-between">
+    <div>
+      <h2 style="margin-bottom:4px">{{ td.title or 'Extracted table' }}</h2>
+      <span class="muted">Source: {{ meta.filename }} · engine: {{ td.engine }} · language detected: {{ td.source_language }} · {{ meta.seconds }} s</span>
+    </div>
+    <div class="row">
+      <a class="btn" href="{{ url_for('download', job_id=meta.job_id) }}">Download Excel</a>
+      <a class="btn secondary" href="{{ url_for('index') }}">Convert another</a>
+    </div>
+  </div>
+  {% if td.notes %}
+  <ul class="notes">{% for n in td.notes %}<li>{{ n }}</li>{% endfor %}</ul>
+  {% endif %}
+</div>
+
+{% if kpis %}
+<div class="card">
+  <h2>Summary</h2>
+  <div class="kpis">
+    {% for k, v in kpis.items() %}
+    <div class="kpi"><div class="l">{{ k }}</div><div class="v">{{ "{:,}".format(v) if v is number else v }}</div></div>
+    {% endfor %}
+  </div>
+  {% if chart_svg %}
+  <div style="margin-top:18px">{{ chart_svg|safe }}</div>
+  <p class="muted">The Excel file contains this chart as a native, editable Excel chart on the “Summary” sheet.</p>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>Data (English){% if truncated %} <span class="muted">— first 200 rows shown</span>{% endif %}</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr>{% for c in td.columns %}<th>{{ c }}</th>{% endfor %}</tr></thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>{% for v in r %}<td class="{{ 'num' if loop.index0 in td.numeric_cols else '' }}">{{ v }}</td>{% endfor %}</tr>
+        {% endfor %}
+        {% for r in td.footer_rows %}
+        <tr class="total">{% for v in r %}<td class="{{ 'num' if loop.index0 in td.numeric_cols else '' }}">{{ v }}</td>{% endfor %}</tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <details>
+    <summary>Original text as read from the image (before translation)</summary>
+    <div class="tablewrap" style="margin-top:12px">
+      <table><tbody>
+        {% for r in td.raw_grid %}<tr>{% for v in r %}<td>{{ v }}</td>{% endfor %}</tr>{% endfor %}
+      </tbody></table>
+    </div>
+  </details>
+</div>
+{% endblock %}

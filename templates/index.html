@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h2>Convert a table image to Excel</h2>
+  <p class="muted">Upload a photo or screenshot of a table. The app reads the cells, translates Nepali text to English
+    (English stays as it is), and produces an Excel workbook with the data table, a summary table and charts.</p>
+  <form method="post" action="{{ url_for('convert') }}" enctype="multipart/form-data" id="f">
+    <label for="image">Image file (JPEG, PNG, WebP, BMP, TIFF)</label>
+    <input type="file" id="image" name="image" accept="image/*" required>
+    <label for="engine">Reading engine</label>
+    <select id="engine" name="engine">
+      <option value="auto">Auto (best available)</option>
+      <option value="tesseract">Tesseract OCR (offline)</option>
+      <option value="claude" {% if not engines.claude %}disabled{% endif %}>Claude vision{% if not engines.claude %} — not configured{% endif %}</option>
+    </select>
+    <p class="muted">
+      Engines available: <span class="badge on">Tesseract OCR</span>
+      <span class="badge {{ 'on' if engines.claude else '' }}">Claude vision {{ 'ready' if engines.claude else 'needs ANTHROPIC_API_KEY' }}</span>
+    </p>
+    <div class="row" style="margin-top:14px">
+      <button class="btn" type="submit" id="go">Convert to Excel</button>
+      <span class="muted" id="busy" hidden>Reading the image… this takes about 10 seconds.</span>
+    </div>
+  </form>
+</div>
+{% if has_sample %}
+<div class="card">
+  <h2>Try the sample</h2>
+  <p class="muted">Run the conversion on the <code>data.jpeg</code> table stored on this server.</p>
+  <form method="post" action="{{ url_for('convert') }}">
+    <input type="hidden" name="sample" value="1">
+    <input type="hidden" name="engine" value="auto">
+    <button class="btn secondary" type="submit">Convert sample data.jpeg</button>
+  </form>
+</div>
+{% endif %}
+<div class="card">
+  <h2>API</h2>
+  <p class="muted">Send an image and receive the workbook directly:</p>
+  <pre><code>curl -F image=@table.jpg {{ request.host_url }}api/convert -o table.xlsx</code></pre>
+  <p class="muted">Add <code>?format=json</code> to get the extracted rows as JSON plus a download link.</p>
+</div>
+<script>
+  document.getElementById('f').addEventListener('submit', function () {
+    document.getElementById('go').disabled = true;
+    document.getElementById('busy').hidden = false;
+  });
+</script>
+{% endblock %}

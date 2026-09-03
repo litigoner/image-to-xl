@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Image to Excel</title>
+<style>
+  :root { --bg:#f9f9f7; --surface:#fff; --ink:#0b0b0b; --ink2:#52514e; --grid:#e1e0d9; --line:#c3c2b7; --accent:#2a78d6; --warn-bg:#fff3cd; --warn:#5c3d00; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0d0d0d; --surface:#1a1a19; --ink:#fff; --ink2:#c3c2b7; --grid:#2c2c2a; --line:#383835; --accent:#3987e5; --warn-bg:#3a2e00; --warn:#ffe59a; } }
+  * { box-sizing:border-box } body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 system-ui,sans-serif }
+  header { padding:20px 28px; border-bottom:1px solid var(--grid) } header h1 { margin:0; font-size:20px }
+  main { max-width:1000px; margin:0 auto; padding:28px }
+  .card { background:var(--surface); border:1px solid var(--grid); border-radius:12px; padding:22px 24px; margin-bottom:22px }
+  label { display:block; font-weight:600; margin:12px 0 6px } input { width:100%; padding:10px; border:1px solid var(--line); border-radius:8px; background:var(--surface); color:var(--ink) }
+  .btn { padding:10px 18px; border-radius:8px; border:1px solid var(--accent); background:var(--accent); color:#fff; font-weight:600; cursor:pointer; text-decoration:none; display:inline-block }
+  .btn[disabled] { opacity:.6 } .muted { color:var(--ink2); font-size:13px }
+  .warn { background:var(--warn-bg); color:var(--warn); padding:10px 12px; border-radius:8px; margin-top:10px }
+  .tablewrap { overflow-x:auto; border:1px solid var(--grid); border-radius:8px; margin-top:12px }
+  table { border-collapse:collapse; width:100%; font-size:14px } th,td { border-bottom:1px solid var(--grid); padding:6px 10px; text-align:left; white-space:nowrap } th { background:var(--bg) }
+  code { background:var(--bg); padding:2px 6px; border-radius:4px }
+</style>
+</head>
+<body>
+<header><h1>Image → Excel</h1><div class="muted">Table image to spreadsheet with chart · Nepali translated to English</div></header>
+<main>
+  <div class="card">
+    <p class="muted">This page is static (GitHub Pages). The conversion runs on an API server built from the
+      <a href="https://github.com/litigoner/image-to-xl">image-to-xl</a> repository (Docker / Render / your own server).
+      Enter that server's address once; it is remembered in this browser.</p>
+    <label for="api">API server URL</label>
+    <input id="api" placeholder="https://your-api-host.example.com">
+    <div id="mixed" class="warn" hidden>This page is served over HTTPS, so browsers block requests to a plain <code>http://</code> API.
+      Use an <code>https://</code> API address (e.g. a Render deployment), or open this page over http.</div>
+    <label for="file">Table image</label>
+    <input id="file" type="file" accept="image/*">
+    <div style="margin-top:14px"><button class="btn" id="go">Convert to Excel</button> <span class="muted" id="status"></span></div>
+  </div>
+  <div class="card" id="result" hidden>
+    <h2 id="title" style="margin:0 0 6px"></h2>
+    <p class="muted" id="meta"></p>
+    <a class="btn" id="dl" href="#" target="_blank" rel="noopener">Download Excel</a>
+    <ul id="notes" class="muted"></ul>
+    <div class="tablewrap"><table id="tbl"></table></div>
+  </div>
+</main>
+<script>
+  const $ = id => document.getElementById(id);
+  const api = $('api');
+  try { api.value = localStorage.getItem('image2xl.api') || ''; } catch (e) {}
+  function checkMixed() {
+    const v = api.value.trim();
+    $('mixed').hidden = !(location.protocol === 'https:' && v.startsWith('http:'));
+  }
+  api.addEventListener('input', () => { try { localStorage.setItem('image2xl.api', api.value.trim()); } catch (e) {} checkMixed(); });
+  checkMixed();
+  $('go').addEventListener('click', async () => {
+    const base = api.value.trim().replace(/\/+$/, '');
+    const f = $('file').files[0];
+    if (!base) { $('status').textContent = 'Enter the API server URL first.'; return; }
+    if (!f) { $('status').textContent = 'Choose an image file.'; return; }
+    $('go').disabled = true; $('status').textContent = 'Reading the image… (about 10 seconds)'; $('result').hidden = true;
+    try {
+      const fd = new FormData(); fd.append('image', f);
+      const r = await fetch(base + '/api/convert?format=json', { method: 'POST', body: fd });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || r.statusText);
+      $('title').textContent = data.title || 'Extracted table';
+      $('meta').textContent = `engine: ${data.engine} · language detected: ${data.source_language}`;
+      $('dl').href = data.download;
+      $('notes').innerHTML = (data.notes || []).map(n => `<li>${esc(n)}</li>`).join('');
+      const head = '<tr>' + data.columns.map(c => `<th>${esc(c)}</th>`).join('') + '</tr>';
+      const body = data.rows.map(row => '<tr>' + row.map(v => `<td>${esc(v)}</td>`).join('') + '</tr>').join('');
+      $('tbl').innerHTML = head + body;
+      $('result').hidden = false; $('status').textContent = '';
+    } catch (e) {
+      $('status').textContent = 'Failed: ' + e.message + (e.message === 'Failed to fetch' ? ' (is the API URL reachable and HTTPS?)' : '');
+    } finally { $('go').disabled = false; }
+  });
+  function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+</script>
+</body>
+</html>

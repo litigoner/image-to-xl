@@ -1,0 +1,12 @@
+# One-click deploy on Render (https://render.com): New + -> Blueprint -> this repo.
+services:
+  - type: web
+    name: image-to-xl
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 8080
+      # - key: ANTHROPIC_API_KEY   # optional: enables the Claude vision engine
+      #   sync: false

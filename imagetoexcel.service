@@ -1,0 +1,15 @@
+[Unit]
+Description=Image to Excel web app (port 8080)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/ubuntu/Queries/imagetoexcel
+EnvironmentFile=-/home/ubuntu/Queries/imagetoexcel/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/ubuntu/Queries/imagetoexcel/.venv/bin/gunicorn --bind 0.0.0.0:8080 --workers 2 --threads 4 --timeout 300 --access-logfile - app:app
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
