@@ -199,7 +199,8 @@ def api_convert():
     if request.args.get("format") == "json":
         return jsonify(job_id=job_id, download=url_for("download", job_id=job_id, _external=True),
                        title=td.title, engine=td.engine, source_language=td.source_language,
-                       columns=td.columns, rows=td.rows, footer_rows=td.footer_rows, notes=td.notes)
+                       columns=td.columns, rows=td.rows, footer_rows=td.footer_rows, notes=td.notes,
+                       chart_svg=_chart_svg(td), totals=(totals(td) if td.series_cols else {}))
     return send_file(OUTPUT_DIR / job_id / meta["xlsx"], as_attachment=True, download_name=meta["xlsx"])
 
 
