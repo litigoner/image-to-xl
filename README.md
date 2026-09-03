@@ -29,7 +29,7 @@ Manual start (development):
 
 | Sheet | Content |
 |---|---|
-| Data | Translated table with headers (merged like the original), live `SUM` total row |
+| Data | Translated table with headers (merged like the original) and the total row exactly as printed in the image (nothing is added) |
 | Summary | Totals, a table aggregated by the category column (e.g. District), a stacked bar chart, and, when present, a second table + column chart by the group column (e.g. Province) |
 | Original OCR | The untranslated text exactly as read from the image, plus notes |
 
@@ -40,6 +40,14 @@ Manual start (development):
 * **Claude vision** (optional): set `ANTHROPIC_API_KEY` in `.env` (see `.env.example`) and restart the
   service. Handles hand-written or grid-less tables and gives better translations. When configured, the
   "Auto" engine uses it and falls back to Tesseract on error.
+
+## Public access (live)
+
+* Front-end (GitHub Pages): **https://litigoner.github.io/image-to-xl/**
+* Backend: this server, exposed over HTTPS by a Cloudflare quick tunnel (`imagetoexcel-tunnel` service,
+  `tunnel_publish.py`). The tunnel address changes when the tunnel restarts; the service writes the current
+  address to `docs/api.json` and pushes it, and the Pages front-end reads that file. Quick tunnels need no
+  account but carry no uptime guarantee; for a permanent address use one of the options below.
 
 ## Deployment options (so anyone can use it)
 
@@ -60,6 +68,6 @@ Optional: set `ANTHROPIC_API_KEY` in the environment of any deployment to enable
 `app.py` Flask app · `pipeline.py` orchestration · `ocr_table.py` grid detection + OCR ·
 `table_model.py` header/column interpretation · `translate_ne.py` Nepali→English ·
 `excel_builder.py` workbook + charts · `claude_extract.py` optional Claude engine ·
-`tests/eval_digits.py` OCR accuracy check on the sample.
+`tests/eval_digits.py` / `tests/eval_digits_any.py` OCR accuracy checks on the samples · `tunnel_publish.py` public HTTPS tunnel.
 
 System packages required: `tesseract-ocr tesseract-ocr-nep tesseract-ocr-eng libgl1`.

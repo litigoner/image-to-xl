@@ -1,0 +1,15 @@
+[Unit]
+Description=Public HTTPS tunnel for the Image to Excel app (publishes URL to docs/api.json)
+After=network-online.target imagetoexcel.service
+Wants=imagetoexcel.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/ubuntu/Queries/imagetoexcel
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/ubuntu/Queries/imagetoexcel/.venv/bin/python tunnel_publish.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

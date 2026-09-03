@@ -92,21 +92,20 @@ def _dedupe(vals: list[int], min_gap: int) -> list[int]:
 
 
 def _filter_segments(mask: np.ndarray, anchors: np.ndarray, horizontal: bool, tol: int) -> np.ndarray:
-    """Keep only line segments whose both endpoints touch a perpendicular line.
+    """Drop text strokes that look like ruling lines (Devanagari headlines).
 
-    A ruling line of a table always meets the perpendicular ruling at both
-    ends; the headline (shirorekha) of a Devanagari word does not.  Filtering on
-    this removes text strokes that would otherwise be mistaken for grid lines.
+    A ruling line is long, or ends where a perpendicular ruling line is; a
+    word's headline is short with arbitrary endpoints.  Long segments are always
+    trusted so a table whose outer border is missing or cropped still works.
     """
+    dim = mask.shape[1] if horizontal else mask.shape[0]
     n, labels, stats, _ = cv2.connectedComponentsWithStats((mask > 0).astype(np.uint8), connectivity=8)
     keep = np.zeros(n, dtype=bool)
     for i in range(1, n):
         x, y, w, h, _area = stats[i]
-        if horizontal:
-            a, b = x, x + w - 1
-        else:
-            a, b = y, y + h - 1
-        if (np.abs(anchors - a) <= tol).any() and (np.abs(anchors - b) <= tol).any():
+        a, b, length = (x, x + w - 1, w) if horizontal else (y, y + h - 1, h)
+        hits = int((np.abs(anchors - a) <= tol).any()) + int((np.abs(anchors - b) <= tol).any())
+        if length >= 0.3 * dim or hits == 2 or (hits == 1 and length >= 0.08 * dim):
             keep[i] = True
     return np.where(keep[labels], mask, 0).astype(np.uint8)
 
@@ -125,10 +124,11 @@ def detect_lines(gray: np.ndarray):
     # x positions that carry some vertical ruling (plus the image edges)
     vx = np.where((vert > 0).any(axis=0))[0]
     vx = np.concatenate([vx, [0, w - 1]])
-    horiz = _filter_segments(horiz, vx, horizontal=True, tol=12)
+    tol = int(max(12, 0.01 * max(w, h)))
+    horiz = _filter_segments(horiz, vx, horizontal=True, tol=tol)
     hy = np.where((horiz > 0).any(axis=1))[0]
     hy = np.concatenate([hy, [0, h - 1]])
-    vert = _filter_segments(vert, hy, horizontal=False, tol=12)
+    vert = _filter_segments(vert, hy, horizontal=False, tol=tol)
 
     row_profile = (horiz > 0).sum(axis=1)
     col_profile = (vert > 0).sum(axis=0)
@@ -207,7 +207,11 @@ def _prep_cell(gray: np.ndarray, box, median_row_h: float):
     ink = float(ink_mask.mean())
     if ink < 0.0004 or ink_mask.sum() < 12:
         return {"big": None, "ink": ink, "psm": 7, "comps": comps, "cell": None}
-    clean = np.where(ink_mask, cell, 255).astype(np.uint8)
+    # erase only the removed components (line remnants); keep the glyphs' soft
+    # anti-aliased edges, which Tesseract needs for thin strokes such as "1"
+    removed = (labels > 0) & ~good[labels]
+    removed = cv2.dilate(removed.astype(np.uint8), cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))) > 0
+    clean = np.where(removed, 255, cell).astype(np.uint8)
     rows_with_ink = np.where(ink_mask.any(axis=1))[0]
     cols_with_ink = np.where(ink_mask.any(axis=0))[0]
     ry1, ry2 = max(0, rows_with_ink[0] - 4), min(ch, rows_with_ink[-1] + 5)
@@ -317,7 +321,8 @@ def _ocr_digits(prep) -> str:
         def score(item):
             t, confs = item
             n = len(digits_only(t))
-            return (len(confs), n >= n_glyphs, n, sum(confs) / len(confs))
+            # glyph count is a reliable lower bound on the digit count: honour it first
+            return (n >= n_glyphs, len(confs), n, sum(confs) / len(confs))
         best = max(votes.items(), key=score)[0]
         # far more glyphs than digits read: this is text (e.g. a Devanagari word), not a number
         if n_glyphs > 2 * len(digits_only(best)) + 1:

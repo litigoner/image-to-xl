@@ -85,26 +85,14 @@ def _write_data_sheet(ws, td: TableData):
         r += 1
     data_end = r - 1
 
-    # total row with live formulas (replaces any footer/total row read from the image)
-    value_cols = [c for c in td.numeric_cols if c != td.index_col]
-    label_col = td.category_col if td.category_col is not None else 0
-    if td.rows and value_cols:
-        label_written = False
-        for c in range(1, n_cols + 1):
-            cell = ws.cell(row=r, column=c)
-            cell.font, cell.fill, cell.border, cell.alignment = Font(bold=True), TOTAL_FILL, BORDER, CENTER
-            if (c - 1) in value_cols:
-                col = get_column_letter(c)
-                cell.value = f"=SUM({col}{data_start}:{col}{data_end})"
-                cell.number_format = "0"
-            elif not label_written and (c - 1) not in td.numeric_cols:
-                cell.value = "Total"
-                label_written = True
-        r += 1
-    # any extra footer rows from the image, kept as text for reference
-    for frow in td.footer_rows[1:]:
+    # footer rows exactly as printed in the image (no computed totals are added)
+    for frow in td.footer_rows:
         for c, v in enumerate(frow, start=1):
-            ws.cell(row=r, column=c, value=(v if v != "" else None)).border = BORDER
+            cell = ws.cell(row=r, column=c, value=(v if v != "" else None))
+            cell.font, cell.fill, cell.border = Font(bold=True), TOTAL_FILL, BORDER
+            cell.alignment = CENTER if (c - 1) in td.numeric_cols else LEFT
+            if is_number(v):
+                cell.number_format = "0" if isinstance(v, int) else "#,##0.00"
         r += 1
 
     ws.freeze_panes = ws.cell(row=data_start, column=1)
@@ -129,15 +117,6 @@ def _write_pivot(ws, top: int, left: int, headers: list[str], rows: list[list], 
             if is_number(v):
                 cell.number_format = "0" if isinstance(v, int) else "#,##0.00"
     first, last = hr + 1, hr + len(rows)
-    tr = last + 1
-    for j in range(len(headers)):
-        cell = ws.cell(row=tr, column=left + j)
-        cell.font, cell.fill, cell.border, cell.alignment = Font(bold=True), TOTAL_FILL, BORDER, CENTER
-        if j == 0:
-            cell.value = "Grand Total"
-        else:
-            col = get_column_letter(left + j)
-            cell.value = f"=SUM({col}{first}:{col}{last})"
     return hr, first, last
 
 
@@ -219,7 +198,7 @@ def _write_summary_sheet(ws, td: TableData):
                          td.columns[by], "Count")
     anchor_col = get_column_letter(len(headers) + 2)
     ws.add_chart(chart, f"{anchor_col}{top}")
-    next_top = max(last + 4, top + int(chart.height * 2) + 2)
+    next_top = max(last + 3, top + int(chart.height * 2) + 2)
 
     if td.group_col is not None:
         gheaders, grows = pivot(td, td.group_col)
