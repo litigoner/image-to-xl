@@ -28,6 +28,7 @@ log = logging.getLogger("imagetoexcel")
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024
 app.secret_key = os.environ.get("SECRET_KEY", uuid.uuid4().hex)
+app.json.sort_keys = False  # keep column order in API responses (summary tiles)
 
 
 # ---------------------------------------------------------------------------
